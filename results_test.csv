@@ -1,0 +1,2 @@
+experiment,training_schedule,num_segments,seed,split,video_auc,video_ap,frame_auc,frame_ap,run_dir,notes
+ucf_test_binary_eval,progressive,8,42,official_test,0.8448,0.6874,0.8437,0.6882,/projectnb/cs585/students/saichava/experiments/ucf_test_eval_seq8_20260319_161412,binary anomaly result only; per-category output not reliable because non-violence test anomalies map to cat_id=0

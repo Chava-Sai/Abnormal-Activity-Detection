@@ -1,0 +1,4 @@
+dataset,experiment,training_schedule,num_segments,seed,video_auc,video_ap,frame_auc,frame_ap,run_dir,notes
+ucf_crime,official_test_binary_eval,progressive,8,42,0.8448,0.6874,0.8437,0.6882,/projectnb/cs585/students/saichava/experiments/ucf_test_eval_seq8_20260319_161412,binary anomaly result only; per-category output not reliable because non-violence test anomalies map to cat_id=0
+ucf_crime,official_test_binary_eval,progressive,8,123,0.8510,0.7182,0.8474,0.7095,/projectnb/cs585/students/saichava/experiments/ucf_test_eval_seq8_seed123_20260319_170153,binary anomaly result only; per-category output not reliable because non-violence test anomalies map to cat_id=0
+ucf_crime,official_test_binary_eval,progressive,8,456,0.8138,0.7080,0.7965,0.6738,/projectnb/cs585/students/saichava/experiments/ucf_test_eval_seq8_seed456_20260319_170225,binary anomaly result only; per-category output not reliable because non-violence test anomalies map to cat_id=0

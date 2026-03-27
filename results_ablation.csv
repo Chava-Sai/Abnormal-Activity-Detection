@@ -1,0 +1,6 @@
+step,experiment,training_schedule,num_segments,seed,best_video_auc,run_dir
+step1,progressive_vs_joint,progressive,32,42,0.9371,/projectnb/cs585/students/saichava/experiments/progressive_run_20260319_151044
+step1,progressive_vs_joint,joint,32,42,0.9338,/projectnb/cs585/students/saichava/experiments/joint_run_20260319_152441
+step2,sequence_length_ablation,progressive,8,42,0.9493,/projectnb/cs585/students/saichava/experiments/seq8_progressive_run_20260319_153852
+step2,sequence_length_ablation,progressive,16,42,0.9330,/projectnb/cs585/students/saichava/experiments/seq16_progressive_run_20260319_155231
+step2,sequence_length_ablation,progressive,32,42,0.9371,/projectnb/cs585/students/saichava/experiments/progressive_run_20260319_151044

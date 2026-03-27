@@ -1,0 +1,4 @@
+dataset,experiment,training_schedule,num_segments,seed,best_video_auc,run_dir
+ucf_crime,best_config_seed_sweep,progressive,8,42,0.9493,/projectnb/cs585/students/saichava/experiments/seq8_progressive_run_20260319_153852
+ucf_crime,best_config_seed_sweep,progressive,8,123,0.9548,/projectnb/cs585/students/saichava/experiments/seq8_progressive_seed123_20260319_162528
+ucf_crime,best_config_seed_sweep,progressive,8,456,0.9447,/projectnb/cs585/students/saichava/experiments/seq8_progressive_seed456_20260319_164209
