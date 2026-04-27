@@ -39,6 +39,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import ViolenceDetector
 from dataset import UCFCrimeDataset, InMemoryDataset, make_train_val_split
 
+
+def infer_input_dim_from_checkpoint(ckpt: dict, fallback: int = 2048) -> int:
+    model_args = ckpt.get('args', {})
+    if model_args.get('input_dim') is not None:
+        return int(model_args['input_dim'])
+
+    weight = ckpt.get('state_dict', {}).get('mil_scorer.net.0.weight')
+    if weight is not None:
+        return int(weight.shape[1])
+    return fallback
+
 CAT_ID_TO_NAME = {
     0: 'Normal',
     1: 'Abuse',
@@ -48,6 +59,30 @@ CAT_ID_TO_NAME = {
     5: 'Robbery',
     6: 'Riot',
 }
+
+
+def resolve_device(requested: str) -> torch.device:
+    if requested == 'auto':
+        if torch.cuda.is_available():
+            return torch.device('cuda')
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return torch.device('mps')
+        return torch.device('cpu')
+
+    if requested == 'cuda':
+        if not torch.cuda.is_available():
+            raise ValueError("Requested --device cuda but CUDA is not available")
+        return torch.device('cuda')
+
+    if requested == 'mps':
+        if not hasattr(torch.backends, 'mps') or not torch.backends.mps.is_available():
+            raise ValueError("Requested --device mps but MPS is not available")
+        return torch.device('mps')
+
+    if requested == 'cpu':
+        return torch.device('cpu')
+
+    raise ValueError(f"unsupported device: {requested}")
 
 
 @torch.no_grad()
@@ -195,9 +230,10 @@ def evaluate_checkpoint(
     # Load model
     ckpt = torch.load(checkpoint_path, map_location=device)
     model_args = ckpt.get('args', {})
+    input_dim = infer_input_dim_from_checkpoint(ckpt)
 
     model = ViolenceDetector(
-        input_dim=2048,
+        input_dim=input_dim,
         num_classes=7,
         d_model=model_args.get('d_model', d_model),
         nhead=model_args.get('nhead', nhead),
@@ -213,10 +249,10 @@ def evaluate_checkpoint(
     # Build dataset
     if use_val_split:
         _, val_samples = make_train_val_split(list_file, feature_dir, val_ratio=val_ratio)
-        dataset = InMemoryDataset(val_samples, feature_dir, num_segments)
+        dataset = InMemoryDataset(val_samples, num_segments=num_segments)
     else:
         dataset = UCFCrimeDataset(
-            feature_dir, list_file,
+            feature_dir, list_file or 'auto',
             mode='test', num_segments=num_segments, violence_only=False
         )
 
@@ -253,13 +289,13 @@ def evaluate_checkpoint(
 
 
 def main(args):
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = resolve_device(args.device)
     print(f"Device: {device}")
 
     metrics = evaluate_checkpoint(
         checkpoint_path=args.checkpoint,
         feature_dir=os.path.expanduser(args.feature_dir),
-        list_file=os.path.expanduser(args.list_file),
+        list_file=(os.path.expanduser(args.list_file) if args.list_file != 'auto' else 'auto'),
         device=device,
         frames_per_segment=args.frames_per_segment,
         num_segments=args.num_segments,
@@ -280,13 +316,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint',        required=True)
     parser.add_argument('--feature_dir',       required=True)
-    parser.add_argument('--list_file',         required=True,
+    parser.add_argument('--list_file',         default='auto',
                         help='List file (val split or test list)')
     parser.add_argument('--frames_per_segment', type=int, default=16)
     parser.add_argument('--num_segments',       type=int, default=32)
     parser.add_argument('--val_split',          action='store_true',
                         help='Create val split from list_file (training list)')
     parser.add_argument('--val_ratio',          type=float, default=0.2)
+    parser.add_argument('--device',             choices=('auto', 'cpu', 'cuda', 'mps'), default='auto')
     parser.add_argument('--output_json',        default=None)
     args = parser.parse_args()
     main(args)

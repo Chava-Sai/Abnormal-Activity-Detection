@@ -19,11 +19,24 @@ import sys
 import argparse
 import time
 import json
+from pathlib import Path
 import numpy as np
 import torch
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import roc_auc_score, average_precision_score, roc_curve, auc
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except ModuleNotFoundError:
+    class SummaryWriter:  # type: ignore[override]
+        def __init__(self, *args, **kwargs):
+            print("tensorboard not installed; scalar logging disabled")
+
+        def add_scalar(self, *args, **kwargs):
+            return None
+
+        def close(self):
+            return None
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import ViolenceDetector
@@ -45,7 +58,72 @@ def get_stage(epoch):
         return 3
 
 
-def set_stage_params(model, optimizer, stage, lr):
+def training_schedule_name(args) -> str:
+    if args.joint:
+        return 'joint'
+    if args.max_stage >= 3:
+        return 'progressive'
+    return f'progressive_stage{args.max_stage}'
+
+
+def resolve_run_root(checkpoint_dir: str, log_dir: str) -> Path:
+    ckpt = Path(checkpoint_dir).expanduser().resolve()
+    log = Path(log_dir).expanduser().resolve()
+    try:
+        common = Path(os.path.commonpath([str(ckpt), str(log)]))
+    except ValueError:
+        common = ckpt.parent
+    return common
+
+
+def resolve_device(requested: str) -> torch.device:
+    if requested == 'auto':
+        if torch.cuda.is_available():
+            return torch.device('cuda')
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return torch.device('mps')
+        return torch.device('cpu')
+
+    if requested == 'cuda':
+        if not torch.cuda.is_available():
+            raise ValueError("Requested --device cuda but CUDA is not available")
+        return torch.device('cuda')
+
+    if requested == 'mps':
+        if not hasattr(torch.backends, 'mps') or not torch.backends.mps.is_available():
+            raise ValueError("Requested --device mps but MPS is not available")
+        return torch.device('mps')
+
+    if requested == 'cpu':
+        return torch.device('cpu')
+
+    raise ValueError(f"unsupported device: {requested}")
+
+
+def save_run_summary(args, best_epoch, best_metrics):
+    run_root = resolve_run_root(args.checkpoint_dir, args.log_dir)
+    payload = {
+        'training_schedule': training_schedule_name(args),
+        'joint': bool(args.joint),
+        'seed': int(args.seed),
+        'num_segments': int(args.num_segments),
+        'input_dim': int(args.input_dim),
+        'frames_per_segment': int(args.frames_per_segment),
+        'epochs': int(args.epochs),
+        'best_epoch': int(best_epoch),
+        'best_metrics': best_metrics,
+        'eval_split': 'external_test' if args.no_val_split else 'val_split',
+        'checkpoint_dir': str(Path(args.checkpoint_dir).expanduser().resolve()),
+        'log_dir': str(Path(args.log_dir).expanduser().resolve()),
+    }
+    out_path = run_root / 'run_summary.json'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open('w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"Run summary: {out_path}")
+
+
+def set_stage_params(model, optimizer, stage, lr, reset_lr_on_stage3=True):
     """
     Freeze/unfreeze components based on training stage and reset LR.
 
@@ -66,7 +144,7 @@ def set_stage_params(model, optimizer, stage, lr):
     optimizer.param_groups[0]['params'] = active_params
 
     # Reset LR at Stage 3 so the TRN can learn from random init
-    if stage == 3:
+    if stage == 3 and reset_lr_on_stage3:
         for pg in optimizer.param_groups:
             pg['lr'] = lr
         print(f"  [LR reset to {lr} for Stage 3 TRN training]")
@@ -197,13 +275,15 @@ def evaluate(model, loader, device, frames_per_segment: int = 16, stage: int = 3
     }
 
 
-def save_checkpoint(model, optimizer, epoch, metrics, args, is_best=False):
+def save_checkpoint(model, optimizer, scheduler, epoch, metrics, args, is_best=False):
     ckpt = {
         'epoch':      epoch,
         'state_dict': model.state_dict(),
         'optimizer':  optimizer.state_dict(),
+        'scheduler':  scheduler.state_dict(),
         'metrics':    metrics,
         'args':       vars(args),
+        'training_schedule': training_schedule_name(args),
     }
     path = os.path.join(args.checkpoint_dir, f'epoch_{epoch:03d}.pt')
     torch.save(ckpt, path)
@@ -221,12 +301,15 @@ def main(args):
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
+    if hasattr(torch.backends, 'cudnn'):
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     print(f"Random seed: {args.seed}")
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.log_dir, exist_ok=True)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = resolve_device(args.device)
     print(f"Device: {device}")
     if device.type == 'cuda':
         print(f"GPU: {torch.cuda.get_device_name(0)}")
@@ -243,15 +326,29 @@ def main(args):
         num_workers=args.num_workers,
         val_ratio=args.val_ratio,
         use_val_split=not args.no_val_split,
+        seed=args.seed,
+        pin_memory=(device.type == 'cuda'),
     )
     if not args.no_val_split:
         print(f"[Eval] Using val split (20% of training data, kept separate from training)")
     else:
         print(f"[Eval] Using external test set")
 
+    inferred_input_dim = getattr(train_ds, 'input_dim', None)
+    if args.input_dim is None:
+        if inferred_input_dim is None:
+            raise ValueError("Failed to infer feature dimensionality from the training set")
+        args.input_dim = inferred_input_dim
+
+    eval_input_dim = getattr(eval_ds, 'input_dim', None)
+    if eval_input_dim is not None and eval_input_dim != args.input_dim:
+        raise ValueError(
+            f"Feature dimension mismatch: train={args.input_dim}, eval={eval_input_dim}"
+        )
+
     # ----------------------------------------------------------------- Model
     model = ViolenceDetector(
-        input_dim=2048,
+        input_dim=args.input_dim,
         num_classes=7,
         d_model=args.d_model,
         nhead=args.nhead,
@@ -285,12 +382,27 @@ def main(args):
         ckpt = torch.load(args.resume, map_location=device)
         model.load_state_dict(ckpt['state_dict'])
         optimizer.load_state_dict(ckpt['optimizer'])
+        if 'scheduler' in ckpt:
+            scheduler.load_state_dict(ckpt['scheduler'])
         start_epoch = ckpt['epoch'] + 1
         best_auc = ckpt['metrics'].get('video_auc',
                     ckpt['metrics'].get('auc', 0.0))
         print(f"Resumed from epoch {ckpt['epoch']}, best AUC={best_auc:.4f}")
 
+    schedule_name = training_schedule_name(args)
+    best_epoch = 0
+    best_metrics = {
+        'video_auc': 0.0,
+        'video_ap': 0.0,
+        'frame_auc': 0.0,
+        'frame_ap': 0.0,
+        'per_cat': {},
+    }
+
     print(f"\nStarting training for {args.epochs} epochs")
+    print(f"Training schedule: {schedule_name}")
+    print(f"Feature dimension: {args.input_dim}")
+    print(f"Temporal sequence length (num_segments): {args.num_segments}")
     print(f"{'Ep':>4} {'Stg':>3} {'Loss':>7} {'MIL':>7} {'Cls':>7} "
           f"{'TRN':>7} {'Bnd':>7} {'vAUC':>7} {'fAUC':>7} {'Time':>7}")
     print("-" * 73)
@@ -306,8 +418,14 @@ def main(args):
             print(f"\nReached max_stage={args.max_stage}. Stopping early at epoch {epoch-1}.")
             break
 
-        if epoch in stage_transition_epochs:
-            n_active = set_stage_params(model, optimizer, stage, args.lr)
+        if epoch == start_epoch or epoch in stage_transition_epochs:
+            n_active = set_stage_params(
+                model,
+                optimizer,
+                stage,
+                args.lr,
+                reset_lr_on_stage3=(epoch in stage_transition_epochs),
+            )
             label = "joint" if args.joint else f"Stage {stage}"
             print(f"\n[{label} — {n_active/1e6:.2f}M active params]\n")
 
@@ -339,9 +457,11 @@ def main(args):
         is_best = metrics['video_auc'] > best_auc
         if is_best:
             best_auc = metrics['video_auc']
+            best_epoch = epoch
+            best_metrics = metrics.copy()
 
         if epoch % args.save_freq == 0 or epoch == args.epochs or is_best:
-            save_checkpoint(model, optimizer, epoch, metrics, args, is_best)
+            save_checkpoint(model, optimizer, scheduler, epoch, metrics, args, is_best)
 
         print(f"{epoch:>4} {stage:>3} "
               f"{losses.get('total', 0):>7.4f} "
@@ -361,6 +481,7 @@ def main(args):
             print(f"       Per-cat AP: {cats_str}")
 
     writer.close()
+    save_run_summary(args, best_epoch=best_epoch, best_metrics=best_metrics)
     print(f"\nTraining complete. Best video AUC: {best_auc:.4f}")
     print(f"Best checkpoint: {args.checkpoint_dir}/best.pt")
 
@@ -370,15 +491,17 @@ if __name__ == '__main__':
 
     # Data
     parser.add_argument('--train_dir',  required=True)
-    parser.add_argument('--test_dir',   required=True)
-    parser.add_argument('--train_list', required=True)
-    parser.add_argument('--test_list',  required=True)
+    parser.add_argument('--test_dir',   default=None)
+    parser.add_argument('--train_list', default='auto')
+    parser.add_argument('--test_list',  default='auto')
     parser.add_argument('--no_val_split', action='store_true',
                         help='Use external test set instead of val split')
     parser.add_argument('--val_ratio',  type=float, default=0.2)
 
     # Model
     parser.add_argument('--num_segments',       type=int,   default=32)
+    parser.add_argument('--input_dim',          type=int,   default=None,
+                        help='Feature dimension; defaults to auto-detect from training data')
     parser.add_argument('--d_model',            type=int,   default=512)
     parser.add_argument('--nhead',              type=int,   default=8)
     parser.add_argument('--trn_layers',         type=int,   default=2)
@@ -390,6 +513,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr',           type=float, default=1e-4)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--num_workers',  type=int,   default=4)
+    parser.add_argument('--device',       choices=('auto', 'cpu', 'cuda', 'mps'), default='auto')
 
     # Loss weights
     parser.add_argument('--lambda_cls',    type=float, default=0.5)
@@ -412,4 +536,8 @@ if __name__ == '__main__':
                         help='Joint training: all 3 losses active from epoch 1 (no staged gating)')
 
     args = parser.parse_args()
+    if not args.no_val_split and args.test_dir is None:
+        args.test_dir = args.train_dir
+    if args.no_val_split and not args.test_dir:
+        raise ValueError("--test_dir is required when --no_val_split is used")
     main(args)

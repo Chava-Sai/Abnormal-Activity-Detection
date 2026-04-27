@@ -1,8 +1,8 @@
 #!/bin/bash
 #$ -P cs585
-#$ -N violence_train
-#$ -o /projectnb/cs585/students/saichava/logs/train_$JOB_ID.out
-#$ -e /projectnb/cs585/students/saichava/logs/train_$JOB_ID.err
+#$ -N violence_progressive
+#$ -o /projectnb/cs585/students/saichava/logs/progressive_$JOB_ID.out
+#$ -e /projectnb/cs585/students/saichava/logs/progressive_$JOB_ID.err
 #$ -l h_rt=24:00:00
 #$ -l gpus=1
 #$ -l gpu_c=7.0
@@ -23,12 +23,14 @@ PROJ=/projectnb/cs585/students/saichava
 TRAIN_DIR=$PROJ/datasets/ucf_train/UCF_Train_ten_crop_i3d
 TEST_DIR=$PROJ/datasets/ucf_test/UCF_test_feature
 LIST_DIR=$HOME/violence_detection/list
-OUT_DIR=$PROJ/experiments/run_$(date +%Y%m%d_%H%M%S)
+OUT_DIR=$PROJ/experiments/progressive_run_$(date +%Y%m%d_%H%M%S)
+SCHEDULE=progressive
 
 mkdir -p $OUT_DIR/checkpoints $OUT_DIR/logs/tensorboard
 mkdir -p $PROJ/logs  # for SGE stdout/stderr
 
 echo "Output dir: $OUT_DIR"
+echo "Training schedule: $SCHEDULE"
 
 python $HOME/violence_detection/src/train.py \
   --train_dir   $TRAIN_DIR \
@@ -51,6 +53,7 @@ python $HOME/violence_detection/src/train.py \
   --topk_cls    5 \
   --eval_freq   5 \
   --save_freq   10 \
+  --seed        42 \
   --checkpoint_dir $OUT_DIR/checkpoints \
   --log_dir        $OUT_DIR/logs/tensorboard
 

@@ -23,7 +23,7 @@ Usage:
     python src/predict.py \
         --checkpoint /path/to/best.pt \
         --feature    /path/to/Fighting001_x264_i3d.npy \
-        --threshold 0.45 --min_duration 2.0 --smooth_k 3
+        --threshold 0.6843 --min_duration 2.0 --smooth_k 3
 """
 
 import os
@@ -38,6 +38,7 @@ from scipy.ndimage import uniform_filter1d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import ViolenceDetector
+from feature_utils import load_feature_array, scan_feature_files, temporal_resize
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 CAT_ID_TO_NAME = {
@@ -50,7 +51,11 @@ CAT_ID_TO_NAME = {
     6: 'Riot',
 }
 
-DEFAULT_THRESHOLD   = 0.45   # anomaly score threshold
+# Calibrated in the refined-score space used by predict.py itself
+# (smooth + boundary refinement) on the current UCF val split for the main
+# T=32 checkpoint family. Recalibrate for new checkpoints or datasets with
+# scripts/calibrate_threshold.py.
+DEFAULT_THRESHOLD   = 0.6843
 DEFAULT_SMOOTH_K    = 5      # Gaussian smooth window (segments)
 DEFAULT_MIN_DUR     = 1.0    # minimum event duration (seconds)
 DEFAULT_MERGE_GAP   = 1.0    # merge intervals closer than this (seconds)
@@ -59,24 +64,8 @@ DEFAULT_BOUNDARY_W  = 0.25   # weight for boundary-guided boundary snapping
 
 # ── Feature loading ────────────────────────────────────────────────────────────
 def load_features(feature_path: str, num_segments: int) -> np.ndarray:
-    """Load and temporally resize features to num_segments × 2048."""
-    feat = np.load(feature_path)
-    if feat.ndim == 3:
-        feat = feat.mean(axis=1)         # (T, 10, 2048) → (T, 2048)
-    elif feat.ndim != 2:
-        raise ValueError(f"Unexpected shape {feat.shape} in {feature_path}")
-
-    T, D = feat.shape
-    N    = num_segments
-
-    if T == N:
-        return feat.astype(np.float32)
-    elif T > N:
-        idx  = np.linspace(0, T - 1, N, dtype=int)
-        return feat[idx].astype(np.float32)
-    else:
-        pad  = np.zeros((N - T, D), dtype=np.float32)
-        return np.concatenate([feat, pad], axis=0)
+    """Load and temporally resize features to `num_segments x D`."""
+    return temporal_resize(load_feature_array(feature_path), num_segments)
 
 
 # ── Inference ──────────────────────────────────────────────────────────────────
@@ -446,8 +435,12 @@ def build_model(checkpoint_path: str, device: torch.device) -> ViolenceDetector:
     """Load checkpoint and reconstruct model."""
     ckpt       = torch.load(checkpoint_path, map_location=device)
     model_args = ckpt.get('args', {})
+    input_dim  = model_args.get('input_dim')
+    if input_dim is None:
+        weight = ckpt.get('state_dict', {}).get('mil_scorer.net.0.weight')
+        input_dim = int(weight.shape[1]) if weight is not None else 2048
     model      = ViolenceDetector(
-        input_dim=2048, num_classes=7,
+        input_dim=input_dim, num_classes=7,
         d_model=model_args.get('d_model', 512),
         nhead=model_args.get('nhead', 8),
         trn_layers=model_args.get('trn_layers', 2),
@@ -474,10 +467,7 @@ def main(args):
         feature_paths = [os.path.expanduser(f) for f in args.feature]
     elif args.feature_dir:
         d = os.path.expanduser(args.feature_dir)
-        feature_paths = sorted([
-            os.path.join(d, f) for f in os.listdir(d)
-            if f.endswith('.npy')
-        ])
+        feature_paths = scan_feature_files(d)
 
     if not feature_paths:
         print("No feature files specified. Use --feature or --feature_dir.")
@@ -567,7 +557,7 @@ if __name__ == '__main__':
 
     # Detection parameters
     parser.add_argument('--threshold',          type=float, default=DEFAULT_THRESHOLD,
-                        help='Anomaly score threshold (default: 0.45)')
+                        help='Anomaly score threshold (default: 0.6843; recalibrate for new checkpoints)')
     parser.add_argument('--smooth_k',           type=int,   default=DEFAULT_SMOOTH_K,
                         help='Gaussian smoothing window in segments (default: 5)')
     parser.add_argument('--min_duration',       type=float, default=DEFAULT_MIN_DUR,

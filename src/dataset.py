@@ -1,102 +1,176 @@
 """
-UCF-Crime Dataset loader for violence event detection.
-Features format: (T, 10, 2048) — T segments, 10-crop, 2048-dim I3D features.
+UCF-Crime dataset utilities for violence detection.
+
+Supports both the original flat 2048-dim `_i3d.npy` layout and local recursive
+feature directories with generic `.npy` names such as `Abuse001_x264.npy`.
 """
 
+from __future__ import annotations
+
 import os
-import re
 import random
-import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
+import re
 from collections import defaultdict
+from typing import Iterable, List, Optional, Tuple
+
+import torch
+from torch.utils.data import DataLoader, Dataset
+
+from feature_utils import (
+    build_feature_index,
+    infer_feature_dim,
+    load_feature_array,
+    resolve_feature_path,
+    scan_feature_files,
+    strip_feature_suffix,
+    temporal_resize,
+)
 
 # Violence categories we focus on (subset of UCF-Crime)
 VIOLENCE_CATEGORIES = {
-    'Abuse':     1,
-    'Fighting':  2,
-    'Shooting':  3,
-    'Explosion': 4,
-    'Robbery':   5,
-    'Riot':      6,
+    "Abuse": 1,
+    "Fighting": 2,
+    "Shooting": 3,
+    "Explosion": 4,
+    "Robbery": 5,
+    "Riot": 6,
     # label 0 = Normal
 }
 
-# All UCF-Crime anomaly classes (for filtering)
 VIOLENCE_CLASS_NAMES = set(VIOLENCE_CATEGORIES.keys())
 
 # UCF-Crime has these non-violence anomaly classes — we skip them in training
 NON_VIOLENCE_ANOMALIES = {
-    'Arrest', 'Arson', 'Assault', 'Burglary', 'RoadAccidents',
-    'Shoplifting', 'Stealing', 'Vandalism'
+    "Arrest",
+    "Arson",
+    "Assault",
+    "Burglary",
+    "RoadAccidents",
+    "Shoplifting",
+    "Stealing",
+    "Vandalism",
 }
+
+Sample = Tuple[str, int, int]
 
 
 def get_category_from_filename(filename: str) -> str:
     """
-    Extract category name from filename like 'Abuse001_x264_i3d.npy'.
-    Returns category string or 'Normal' or 'Other' (non-violence anomaly).
-
-    Uses regex to correctly strip trailing digits — avoids rstrip() bug where
-    rstrip('0123456789_') applied to extensions would strip nothing or too much.
+    Extract category name from filenames like:
+      - Abuse001_x264.npy
+      - Abuse001_x264_i3d.npy
+      - Normal_Videos_001_i3d.npy
     """
-    basename = os.path.basename(filename)
-    # Remove known suffixes
-    basename = re.sub(r'_x264_i3d\.npy$', '', basename)
-    basename = re.sub(r'_i3d\.npy$', '', basename)
-    basename = re.sub(r'\.npy$', '', basename)
-    # Remove trailing digits (e.g., 'Abuse001' -> 'Abuse', 'Normal_Videos_001' -> 'Normal_Videos')
-    category = re.sub(r'_?\d+$', '', basename)
-    # Handle 'Normal_Videos' -> 'Normal'
-    if category.startswith('Normal'):
-        return 'Normal'
+    stem = strip_feature_suffix(filename)
+    category = re.sub(r"_?\d+$", "", stem)
+    if category.startswith("Normal"):
+        return "Normal"
     return category
 
 
+def _iter_feature_references(list_file: Optional[str], feature_dir: str) -> List[str]:
+    """
+    Return raw feature references from a `.list` file or recursive directory scan.
+    `list_file='auto'` scans `feature_dir`.
+    """
+    if not list_file or list_file == "auto":
+        return scan_feature_files(feature_dir)
+
+    if not os.path.exists(list_file):
+        raise FileNotFoundError(
+            f"list file not found: {list_file}. Use --train_list auto to scan {feature_dir} recursively."
+        )
+
+    with open(list_file, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def _build_samples(
+    references: Iterable[str],
+    feature_dir: str,
+    mode: str,
+    violence_only: bool,
+    verbose: bool = True,
+) -> List[Sample]:
+    """Resolve feature references into `(filepath, label, cat_id)` tuples."""
+    index = build_feature_index(feature_dir)
+    samples: List[Sample] = []
+    seen = set()
+    missing = 0
+
+    for ref in references:
+        filepath = resolve_feature_path(ref, feature_dir, index)
+        if filepath is None:
+            missing += 1
+            continue
+
+        if filepath in seen:
+            continue
+        seen.add(filepath)
+
+        category = get_category_from_filename(filepath)
+        if category == "Normal":
+            label, cat_id = 0, 0
+        elif category in VIOLENCE_CATEGORIES:
+            label, cat_id = 1, VIOLENCE_CATEGORIES[category]
+        else:
+            if violence_only and mode == "train":
+                continue
+            if category in NON_VIOLENCE_ANOMALIES:
+                label, cat_id = 1, 0
+            else:
+                continue
+
+        samples.append((filepath, label, cat_id))
+
+    if verbose and missing:
+        print(f"[{mode}] Skipped {missing} list entries with no matching local feature file")
+
+    return samples
+
+
+def _summarize_samples(mode: str, samples: List[Sample], tag: str = "") -> None:
+    n_anom = sum(1 for _, label, _ in samples if label == 1)
+    n_norm = sum(1 for _, label, _ in samples if label == 0)
+    suffix = f" {tag}" if tag else ""
+    print(f"[{mode}] Loaded {len(samples)} samples ({n_anom} anomalous, {n_norm} normal){suffix}")
+
+
 def make_train_val_split(
-    list_file: str,
+    list_file: Optional[str],
     feature_dir: str,
     val_ratio: float = 0.2,
     seed: int = 42,
-) -> tuple:
+) -> tuple[List[Sample], List[Sample]]:
     """
-    Create stratified train/val split from a training list file.
-
-    Args:
-        list_file:   path to .list file (one feature path per line)
-        feature_dir: directory where feature files live
-        val_ratio:   fraction of each category to put in val set
-        seed:        random seed for reproducibility
-
-    Returns:
-        (train_samples, val_samples) — each is list of (filename, label, cat_id)
+    Create a stratified train/val split grouped by category name.
     """
     random.seed(seed)
 
-    with open(list_file) as f:
-        lines = [l.strip() for l in f if l.strip()]
+    references = _iter_feature_references(list_file, feature_dir)
+    samples = _build_samples(
+        references,
+        feature_dir=feature_dir,
+        mode="train",
+        violence_only=True,
+        verbose=True,
+    )
 
     by_cat = defaultdict(list)
-    for line in lines:
-        filename = line.replace('\\', '/').split('/')[-1]
-        filepath = os.path.join(feature_dir, filename)
-        if not os.path.exists(filepath):
-            continue
-        cat = get_category_from_filename(filename)
-        if cat == 'Normal':
-            label, cat_id = 0, 0
-        elif cat in VIOLENCE_CATEGORIES:
-            label, cat_id = 1, VIOLENCE_CATEGORIES[cat]
-        elif cat in NON_VIOLENCE_ANOMALIES:
-            continue  # skip non-violence anomalies during train/val split
-        else:
-            continue  # unknown category
-        by_cat[cat].append((filename, label, cat_id))
+    for sample in samples:
+        by_cat[get_category_from_filename(sample[0])].append(sample)
 
-    train_samples, val_samples = [], []
-    for cat, items in sorted(by_cat.items()):
+    train_samples: List[Sample] = []
+    val_samples: List[Sample] = []
+
+    for category, items in sorted(by_cat.items()):
         random.shuffle(items)
-        n_val = max(1, int(len(items) * val_ratio))
+        if len(items) <= 1:
+            train_samples.extend(items)
+            continue
+
+        n_val = max(1, int(round(len(items) * val_ratio)))
+        n_val = min(n_val, len(items) - 1)
         val_samples.extend(items[:n_val])
         train_samples.extend(items[n_val:])
 
@@ -106,107 +180,55 @@ def make_train_val_split(
 class UCFCrimeDataset(Dataset):
     """
     Dataset for UCF-Crime violence detection.
-
-    For training: loads anomalous (violence) + normal videos.
-    For testing:  loads all videos with ground truth labels.
-
-    Args:
-        feature_dir: path to directory containing .npy feature files
-        list_file:   path to .list file with one feature path per line
-        mode:        'train' or 'test'
-        num_segments: fixed number of segments to sample/pad to (None = use all)
-        violence_only: if True, skip non-violence anomaly classes during training
     """
 
     def __init__(
         self,
         feature_dir: str,
-        list_file: str,
-        mode: str = 'train',
-        num_segments: int = 32,
+        list_file: Optional[str] = "auto",
+        mode: str = "train",
+        num_segments: Optional[int] = 32,
         violence_only: bool = True,
-        _override_samples: list = None,
+        _override_samples: Optional[List[Sample]] = None,
     ):
         self.feature_dir = feature_dir
         self.mode = mode
         self.num_segments = num_segments
         self.violence_only = violence_only
 
-        self.samples = []  # list of (filepath, label, category_id)
         if _override_samples is not None:
-            self.samples = _override_samples
-            n_a = sum(1 for _, l, _ in self.samples if l == 1)
-            n_n = sum(1 for _, l, _ in self.samples if l == 0)
-            print(f"[{self.mode}] Loaded {len(self.samples)} samples "
-                  f"({n_a} anomalous, {n_n} normal) [from split]")
+            self.samples = list(_override_samples)
+            _summarize_samples(self.mode, self.samples, tag="[from split]")
         else:
-            self._load_list(list_file)
+            self.samples = self._load_list(list_file)
 
-    def _load_list(self, list_file: str):
-        """Parse list file and build sample list with labels."""
-        with open(list_file, 'r') as f:
-            lines = [l.strip() for l in f if l.strip()]
+        if not self.samples:
+            raise ValueError(
+                f"[{self.mode}] No usable feature files found in {feature_dir}. "
+                "Check the directory path, list file, and filename pattern."
+            )
 
-        for line in lines:
-            # Convert Windows path to just filename
-            filename = line.replace('\\', '/').split('/')[-1]
-            filepath = os.path.join(self.feature_dir, filename)
+        self.input_dim = infer_feature_dim(path for path, _, _ in self.samples)
+        if self.input_dim is None:
+            raise ValueError(f"[{self.mode}] Failed to infer feature dimensionality")
 
-            category = get_category_from_filename(filename)
+    def _load_list(self, list_file: Optional[str]) -> List[Sample]:
+        references = _iter_feature_references(list_file, self.feature_dir)
+        samples = _build_samples(
+            references,
+            feature_dir=self.feature_dir,
+            mode=self.mode,
+            violence_only=self.violence_only,
+            verbose=True,
+        )
+        _summarize_samples(self.mode, samples)
+        return samples
 
-            if category == 'Normal':
-                label = 0
-                cat_id = 0
-            elif category in VIOLENCE_CATEGORIES:
-                label = 1
-                cat_id = VIOLENCE_CATEGORIES[category]
-            else:
-                # Non-violence anomaly (Arrest, Arson, etc.)
-                if self.violence_only and self.mode == 'train':
-                    continue  # skip during training
-                label = 1
-                cat_id = 0  # unknown violence type
+    def _load_features(self, filepath: str):
+        return load_feature_array(filepath)
 
-            if os.path.exists(filepath):
-                self.samples.append((filepath, label, cat_id))
-            # silently skip missing files (handles partial downloads)
-
-        print(f"[{self.mode}] Loaded {len(self.samples)} samples "
-              f"({sum(1 for _,l,_ in self.samples if l==1)} anomalous, "
-              f"{sum(1 for _,l,_ in self.samples if l==0)} normal)")
-
-    def _load_features(self, filepath: str) -> np.ndarray:
-        """
-        Load .npy feature file and return shape (T, 2048).
-        Input shape is (T, 10, 2048) — average over 10 crops.
-        """
-        feat = np.load(filepath)  # (T, 10, 2048)
-        if feat.ndim == 3:
-            feat = feat.mean(axis=1)  # → (T, 2048)
-        elif feat.ndim == 2:
-            pass  # already (T, 2048)
-        else:
-            raise ValueError(f"Unexpected feature shape {feat.shape} in {filepath}")
-        return feat.astype(np.float32)
-
-    def _temporal_sample(self, feat: np.ndarray) -> np.ndarray:
-        """
-        Resize temporal dimension to self.num_segments.
-        Uses uniform sampling if T > num_segments, padding if T < num_segments.
-        """
-        T = feat.shape[0]
-        N = self.num_segments
-
-        if T == N:
-            return feat
-        elif T > N:
-            # Uniform sampling
-            indices = np.linspace(0, T - 1, N, dtype=int)
-            return feat[indices]
-        else:
-            # Pad with zeros at the end
-            pad = np.zeros((N - T, feat.shape[1]), dtype=np.float32)
-            return np.concatenate([feat, pad], axis=0)
+    def _temporal_sample(self, feat):
+        return temporal_resize(feat, self.num_segments)
 
     def __len__(self):
         return len(self.samples)
@@ -219,23 +241,31 @@ class UCFCrimeDataset(Dataset):
             feat = self._temporal_sample(feat)
 
         return {
-            'features': torch.tensor(feat, dtype=torch.float32),  # (T, 2048)
-            'label':    torch.tensor(label, dtype=torch.long),     # 0 or 1
-            'cat_id':   torch.tensor(cat_id, dtype=torch.long),    # 0-6
-            'filepath': filepath,
+            "features": torch.tensor(feat, dtype=torch.float32),
+            "label": torch.tensor(label, dtype=torch.long),
+            "cat_id": torch.tensor(cat_id, dtype=torch.long),
+            "filepath": filepath,
         }
 
 
 class MILDataset(Dataset):
     """
-    MIL-style dataset that returns pairs of (anomalous, normal) videos for ranking loss.
-    Used during Stage 1 and 2 training.
+    MIL-style dataset that returns anomalous/normal pairs for ranking loss.
     """
 
     def __init__(self, base_dataset: UCFCrimeDataset):
         self.anomalous = [(f, l, c) for f, l, c in base_dataset.samples if l == 1]
-        self.normal    = [(f, l, c) for f, l, c in base_dataset.samples if l == 0]
+        self.normal = [(f, l, c) for f, l, c in base_dataset.samples if l == 0]
         self.base = base_dataset
+
+        if not self.anomalous:
+            raise ValueError("[MIL] Training set contains no anomalous videos")
+        if not self.normal:
+            raise ValueError(
+                "[MIL] Training set contains no normal videos. "
+                "Step 1 cannot run until you extract Normal/Normal_Videos features."
+            )
+
         print(f"[MIL] {len(self.anomalous)} anomalous, {len(self.normal)} normal")
 
     def __len__(self):
@@ -245,8 +275,8 @@ class MILDataset(Dataset):
         a_idx = idx % len(self.anomalous)
         n_idx = idx % len(self.normal)
 
-        a_path, a_label, a_cat = self.anomalous[a_idx]
-        n_path, n_label, n_cat = self.normal[n_idx]
+        a_path, _, a_cat = self.anomalous[a_idx]
+        n_path, _, _ = self.normal[n_idx]
 
         a_feat = self.base._load_features(a_path)
         n_feat = self.base._load_features(n_path)
@@ -256,154 +286,141 @@ class MILDataset(Dataset):
             n_feat = self.base._temporal_sample(n_feat)
 
         return {
-            'anom_features': torch.tensor(a_feat, dtype=torch.float32),
-            'norm_features': torch.tensor(n_feat, dtype=torch.float32),
-            'anom_cat':      torch.tensor(a_cat, dtype=torch.long),
+            "anom_features": torch.tensor(a_feat, dtype=torch.float32),
+            "norm_features": torch.tensor(n_feat, dtype=torch.float32),
+            "anom_cat": torch.tensor(a_cat, dtype=torch.long),
         }
 
 
 class InMemoryDataset(Dataset):
     """
-    Lightweight dataset backed by a pre-built sample list (no list file needed).
-    Used for the val split from make_train_val_split().
+    Lightweight dataset backed by a pre-built sample list.
     """
 
-    def __init__(self, samples: list, feature_dir: str, num_segments: int = 32):
-        """
-        Args:
-            samples: list of (filename, label, cat_id) tuples
-            feature_dir: directory containing .npy feature files
-            num_segments: fixed temporal length
-        """
+    def __init__(
+        self,
+        samples: List[Sample],
+        feature_dir: Optional[str] = None,
+        num_segments: Optional[int] = 32,
+    ):
+        resolved_samples = []
+        for filepath, label, cat_id in samples:
+            if os.path.isabs(filepath):
+                resolved_path = filepath
+            elif feature_dir:
+                resolved_path = os.path.join(feature_dir, filepath)
+            else:
+                resolved_path = filepath
+            resolved_samples.append((resolved_path, label, cat_id))
+
+        self.samples = resolved_samples
         self.feature_dir = feature_dir
         self.num_segments = num_segments
-        # Build full paths
-        self.samples = [
-            (os.path.join(feature_dir, fn), lbl, cid)
-            for fn, lbl, cid in samples
-        ]
-        n_anom = sum(1 for _, l, _ in self.samples if l == 1)
-        n_norm = sum(1 for _, l, _ in self.samples if l == 0)
-        print(f"[InMemory] {len(self.samples)} samples ({n_anom} anomalous, {n_norm} normal)")
+        self.input_dim = infer_feature_dim(path for path, _, _ in self.samples)
+        if self.input_dim is None:
+            raise ValueError("[InMemory] Failed to infer feature dimensionality")
+        _summarize_samples("InMemory", self.samples)
 
-    def _load_features(self, filepath: str) -> np.ndarray:
-        feat = np.load(filepath)
-        if feat.ndim == 3:
-            feat = feat.mean(axis=1)
-        return feat.astype(np.float32)
+    def _load_features(self, filepath: str):
+        return load_feature_array(filepath)
 
-    def _temporal_sample(self, feat: np.ndarray) -> np.ndarray:
-        T, D = feat.shape
-        N = self.num_segments
-        if T == N:
-            return feat
-        elif T > N:
-            indices = np.linspace(0, T - 1, N, dtype=int)
-            return feat[indices]
-        else:
-            pad = np.zeros((N - T, D), dtype=np.float32)
-            return np.concatenate([feat, pad], axis=0)
+    def _temporal_sample(self, feat):
+        return temporal_resize(feat, self.num_segments)
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         filepath, label, cat_id = self.samples[idx]
-        feat = self._load_features(filepath)
-        feat = self._temporal_sample(feat)
+        feat = self._temporal_sample(self._load_features(filepath))
         return {
-            'features': torch.tensor(feat, dtype=torch.float32),
-            'label':    torch.tensor(label, dtype=torch.long),
-            'cat_id':   torch.tensor(cat_id, dtype=torch.long),
-            'filepath': filepath,
+            "features": torch.tensor(feat, dtype=torch.float32),
+            "label": torch.tensor(label, dtype=torch.long),
+            "cat_id": torch.tensor(cat_id, dtype=torch.long),
+            "filepath": filepath,
         }
 
 
 def build_dataloaders(
     train_feature_dir: str,
-    test_feature_dir: str,
-    train_list: str,
-    test_list: str,
+    test_feature_dir: Optional[str],
+    train_list: Optional[str],
+    test_list: Optional[str],
     num_segments: int = 32,
     batch_size: int = 32,
     num_workers: int = 4,
     val_ratio: float = 0.2,
     use_val_split: bool = True,
+    seed: int = 42,
+    pin_memory: bool = False,
 ):
     """
-    Build train (MIL pairs), val, and test dataloaders.
-
-    When use_val_split=True, carves out a stratified 20% val set from the
-    training list. The val set is used for evaluation during training instead
-    of (or in addition to) the test set, which may be incomplete.
-
-    Returns:
-        train_loader, eval_loader, train_ds, eval_ds
-        eval_loader/eval_ds is the val split if use_val_split else the test set.
+    Build train and evaluation dataloaders.
     """
     if use_val_split:
         train_samples, val_samples = make_train_val_split(
-            train_list, train_feature_dir, val_ratio=val_ratio
+            train_list,
+            train_feature_dir,
+            val_ratio=val_ratio,
+            seed=seed,
         )
-        # Rebuild UCFCrimeDataset from train_samples only (anomalous + normal)
         train_ds = UCFCrimeDataset(
-            train_feature_dir, train_list,
-            mode='train', num_segments=num_segments, violence_only=True,
-            _override_samples=[(os.path.join(train_feature_dir, fn), l, c)
-                               for fn, l, c in train_samples]
+            train_feature_dir,
+            train_list,
+            mode="train",
+            num_segments=num_segments,
+            violence_only=True,
+            _override_samples=train_samples,
         )
-        eval_ds = InMemoryDataset(val_samples, train_feature_dir, num_segments)
+        eval_ds = InMemoryDataset(val_samples, num_segments=num_segments)
     else:
+        if not test_feature_dir:
+            raise ValueError("--test_dir is required when --no_val_split is used")
         train_ds = UCFCrimeDataset(
-            train_feature_dir, train_list,
-            mode='train', num_segments=num_segments, violence_only=True
+            train_feature_dir,
+            train_list,
+            mode="train",
+            num_segments=num_segments,
+            violence_only=True,
         )
         eval_ds = UCFCrimeDataset(
-            test_feature_dir, test_list,
-            mode='test', num_segments=num_segments, violence_only=False
+            test_feature_dir,
+            test_list,
+            mode="test",
+            num_segments=num_segments,
+            violence_only=False,
         )
 
     mil_ds = MILDataset(train_ds)
 
     train_loader = DataLoader(
-        mil_ds, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True, drop_last=True
+        mil_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        drop_last=True,
     )
     eval_loader = DataLoader(
-        eval_ds, batch_size=1, shuffle=False,
-        num_workers=num_workers, pin_memory=True
+        eval_ds,
+        batch_size=1,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
     )
     return train_loader, eval_loader, train_ds, eval_ds
 
 
-if __name__ == '__main__':
-    # Quick sanity check with test features only
+if __name__ == "__main__":
     import sys
 
-    test_dir = sys.argv[1] if len(sys.argv) > 1 else 'ucf_test/UCF_test_feature'
-    test_list = sys.argv[2] if len(sys.argv) > 2 else None
+    feature_dir = sys.argv[1] if len(sys.argv) > 1 else "."
+    list_file = sys.argv[2] if len(sys.argv) > 2 else "auto"
+    ds = UCFCrimeDataset(feature_dir, list_file, mode="test", num_segments=32, violence_only=False)
 
-    if test_list is None:
-        # Build a temporary list from whatever .npy files exist
-        files = [f for f in os.listdir(test_dir) if f.endswith('.npy')]
-        tmp_list = '/tmp/ucf_test_tmp.list'
-        with open(tmp_list, 'w') as f:
-            for fn in files:
-                f.write(fn + '\n')
-        test_list = tmp_list
-
-    ds = UCFCrimeDataset(test_dir, test_list, mode='test', num_segments=32)
     print(f"\nDataset size: {len(ds)}")
-
     item = ds[0]
     print(f"features shape : {item['features'].shape}")
     print(f"label          : {item['label']}")
     print(f"cat_id         : {item['cat_id']}")
     print(f"filepath       : {item['filepath']}")
-
-    # Check category distribution
-    from collections import Counter
-    cats = Counter()
-    for _, _, c in ds.samples:
-        cats[c] += 1
-    print(f"\nCategory distribution (id: count): {dict(sorted(cats.items()))}")
