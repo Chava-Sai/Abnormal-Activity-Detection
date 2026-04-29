@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+logs/
+*.pt
+*.npy
+*.npz
+shanghai_test_features/
