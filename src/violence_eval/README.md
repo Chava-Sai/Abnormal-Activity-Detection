@@ -1,4 +1,3 @@
-cat > README.md <<'EOF'
 # ShanghaiTech Violence Evaluation
 
 Zero-shot ShanghaiTech robustness evaluation using a UCF-Crime-trained violence detector.
