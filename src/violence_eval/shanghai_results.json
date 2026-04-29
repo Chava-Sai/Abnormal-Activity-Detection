@@ -1,7 +1,0 @@
-{
-  "total_frames": 524123,
-  "anomalous_frames": 45678,
-  "anomalous_percent": 8.71,
-  "frame_auc": 0.7123,
-  "frame_ap": 0.6215
-}
