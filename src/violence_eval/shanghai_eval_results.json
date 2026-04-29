@@ -1,0 +1,766 @@
+{
+  "dataset": "ShanghaiTech",
+  "eval_type": "zero_shot_binary",
+  "checkpoint": "violence_detector_best.pt",
+  "feat_dir": "shanghai_test_features",
+  "num_segments": 32,
+  "frames_per_seg": 16,
+  "videos_evaluated": 107,
+  "videos_skipped": 0,
+  "total_frames": 40791,
+  "anomalous_frames": 17326,
+  "anomalous_pct": 42.47505577210659,
+  "frame_auc": 0.40447588600586204,
+  "frame_ap": 0.37303932118252603,
+  "per_video": [
+    {
+      "video_id": "01_0014",
+      "n_frames": 265,
+      "n_anomalous": 76,
+      "max_score": 0.6473211050033569,
+      "mean_score": 0.5695405602455139
+    },
+    {
+      "video_id": "01_0015",
+      "n_frames": 433,
+      "n_anomalous": 288,
+      "max_score": 0.6478980779647827,
+      "mean_score": 0.5693792104721069
+    },
+    {
+      "video_id": "01_0016",
+      "n_frames": 337,
+      "n_anomalous": 91,
+      "max_score": 0.6469916701316833,
+      "mean_score": 0.5688822269439697
+    },
+    {
+      "video_id": "01_0025",
+      "n_frames": 601,
+      "n_anomalous": 55,
+      "max_score": 0.6460259556770325,
+      "mean_score": 0.5683857202529907
+    },
+    {
+      "video_id": "01_0026",
+      "n_frames": 505,
+      "n_anomalous": 120,
+      "max_score": 0.6463554501533508,
+      "mean_score": 0.5690788626670837
+    },
+    {
+      "video_id": "01_0027",
+      "n_frames": 409,
+      "n_anomalous": 74,
+      "max_score": 0.6475826501846313,
+      "mean_score": 0.5702516436576843
+    },
+    {
+      "video_id": "01_0028",
+      "n_frames": 457,
+      "n_anomalous": 64,
+      "max_score": 0.6460158824920654,
+      "mean_score": 0.5697424411773682
+    },
+    {
+      "video_id": "01_0029",
+      "n_frames": 313,
+      "n_anomalous": 113,
+      "max_score": 0.6476685404777527,
+      "mean_score": 0.5686978101730347
+    },
+    {
+      "video_id": "01_0030",
+      "n_frames": 409,
+      "n_anomalous": 200,
+      "max_score": 0.6468832492828369,
+      "mean_score": 0.5684194564819336
+    },
+    {
+      "video_id": "01_0051",
+      "n_frames": 337,
+      "n_anomalous": 170,
+      "max_score": 0.6483264565467834,
+      "mean_score": 0.5688189268112183
+    },
+    {
+      "video_id": "01_0052",
+      "n_frames": 337,
+      "n_anomalous": 89,
+      "max_score": 0.6488965153694153,
+      "mean_score": 0.5707557797431946
+    },
+    {
+      "video_id": "01_0053",
+      "n_frames": 457,
+      "n_anomalous": 235,
+      "max_score": 0.6528863310813904,
+      "mean_score": 0.5706603527069092
+    },
+    {
+      "video_id": "01_0054",
+      "n_frames": 577,
+      "n_anomalous": 293,
+      "max_score": 0.6495006084442139,
+      "mean_score": 0.5699313282966614
+    },
+    {
+      "video_id": "01_0055",
+      "n_frames": 313,
+      "n_anomalous": 245,
+      "max_score": 0.6474260687828064,
+      "mean_score": 0.5689154267311096
+    },
+    {
+      "video_id": "01_0056",
+      "n_frames": 529,
+      "n_anomalous": 135,
+      "max_score": 0.6495215892791748,
+      "mean_score": 0.5692874193191528
+    },
+    {
+      "video_id": "01_0063",
+      "n_frames": 193,
+      "n_anomalous": 71,
+      "max_score": 0.6474108099937439,
+      "mean_score": 0.5716770887374878
+    },
+    {
+      "video_id": "01_0064",
+      "n_frames": 289,
+      "n_anomalous": 213,
+      "max_score": 0.6480099558830261,
+      "mean_score": 0.571609616279602
+    },
+    {
+      "video_id": "01_0073",
+      "n_frames": 289,
+      "n_anomalous": 91,
+      "max_score": 0.6478845477104187,
+      "mean_score": 0.570719838142395
+    },
+    {
+      "video_id": "01_0076",
+      "n_frames": 265,
+      "n_anomalous": 229,
+      "max_score": 0.6482096314430237,
+      "mean_score": 0.5700041651725769
+    },
+    {
+      "video_id": "01_0129",
+      "n_frames": 241,
+      "n_anomalous": 98,
+      "max_score": 0.6480041146278381,
+      "mean_score": 0.5697066783905029
+    },
+    {
+      "video_id": "01_0130",
+      "n_frames": 337,
+      "n_anomalous": 94,
+      "max_score": 0.647082507610321,
+      "mean_score": 0.5692867636680603
+    },
+    {
+      "video_id": "01_0131",
+      "n_frames": 289,
+      "n_anomalous": 97,
+      "max_score": 0.6479118466377258,
+      "mean_score": 0.571208655834198
+    },
+    {
+      "video_id": "01_0132",
+      "n_frames": 265,
+      "n_anomalous": 87,
+      "max_score": 0.6469749212265015,
+      "mean_score": 0.570298969745636
+    },
+    {
+      "video_id": "01_0133",
+      "n_frames": 217,
+      "n_anomalous": 216,
+      "max_score": 0.6472803950309753,
+      "mean_score": 0.5707700848579407
+    },
+    {
+      "video_id": "01_0134",
+      "n_frames": 433,
+      "n_anomalous": 185,
+      "max_score": 0.6481349468231201,
+      "mean_score": 0.5697013139724731
+    },
+    {
+      "video_id": "01_0135",
+      "n_frames": 409,
+      "n_anomalous": 189,
+      "max_score": 0.6470288038253784,
+      "mean_score": 0.569022536277771
+    },
+    {
+      "video_id": "01_0136",
+      "n_frames": 529,
+      "n_anomalous": 311,
+      "max_score": 0.6481741070747375,
+      "mean_score": 0.5699833631515503
+    },
+    {
+      "video_id": "01_0138",
+      "n_frames": 313,
+      "n_anomalous": 120,
+      "max_score": 0.6487557291984558,
+      "mean_score": 0.5728929042816162
+    },
+    {
+      "video_id": "01_0139",
+      "n_frames": 217,
+      "n_anomalous": 107,
+      "max_score": 0.6483493447303772,
+      "mean_score": 0.5715204477310181
+    },
+    {
+      "video_id": "01_0140",
+      "n_frames": 241,
+      "n_anomalous": 73,
+      "max_score": 0.6476337313652039,
+      "mean_score": 0.5711593627929688
+    },
+    {
+      "video_id": "01_0141",
+      "n_frames": 313,
+      "n_anomalous": 146,
+      "max_score": 0.6471378207206726,
+      "mean_score": 0.5707457065582275
+    },
+    {
+      "video_id": "01_0162",
+      "n_frames": 193,
+      "n_anomalous": 104,
+      "max_score": 0.647898256778717,
+      "mean_score": 0.5721859931945801
+    },
+    {
+      "video_id": "01_0163",
+      "n_frames": 265,
+      "n_anomalous": 120,
+      "max_score": 0.6479326486587524,
+      "mean_score": 0.5716114640235901
+    },
+    {
+      "video_id": "01_0177",
+      "n_frames": 317,
+      "n_anomalous": 85,
+      "max_score": 0.6479712724685669,
+      "mean_score": 0.5704194903373718
+    },
+    {
+      "video_id": "02_0128",
+      "n_frames": 457,
+      "n_anomalous": 252,
+      "max_score": 0.6435829997062683,
+      "mean_score": 0.569574773311615
+    },
+    {
+      "video_id": "02_0161",
+      "n_frames": 337,
+      "n_anomalous": 220,
+      "max_score": 0.6473831534385681,
+      "mean_score": 0.5689294338226318
+    },
+    {
+      "video_id": "02_0164",
+      "n_frames": 361,
+      "n_anomalous": 190,
+      "max_score": 0.6460249423980713,
+      "mean_score": 0.5696213245391846
+    },
+    {
+      "video_id": "03_0031",
+      "n_frames": 529,
+      "n_anomalous": 60,
+      "max_score": 0.6550876498222351,
+      "mean_score": 0.5727825164794922
+    },
+    {
+      "video_id": "03_0032",
+      "n_frames": 409,
+      "n_anomalous": 120,
+      "max_score": 0.6485687494277954,
+      "mean_score": 0.5722763538360596
+    },
+    {
+      "video_id": "03_0033",
+      "n_frames": 313,
+      "n_anomalous": 115,
+      "max_score": 0.6479268074035645,
+      "mean_score": 0.5728621482849121
+    },
+    {
+      "video_id": "03_0035",
+      "n_frames": 385,
+      "n_anomalous": 106,
+      "max_score": 0.6483405232429504,
+      "mean_score": 0.5733215808868408
+    },
+    {
+      "video_id": "03_0036",
+      "n_frames": 457,
+      "n_anomalous": 216,
+      "max_score": 0.6474000215530396,
+      "mean_score": 0.5737007856369019
+    },
+    {
+      "video_id": "03_0039",
+      "n_frames": 481,
+      "n_anomalous": 211,
+      "max_score": 0.6468533277511597,
+      "mean_score": 0.5734174251556396
+    },
+    {
+      "video_id": "03_0041",
+      "n_frames": 457,
+      "n_anomalous": 106,
+      "max_score": 0.6420594453811646,
+      "mean_score": 0.5734189748764038
+    },
+    {
+      "video_id": "03_0059",
+      "n_frames": 433,
+      "n_anomalous": 147,
+      "max_score": 0.6483861804008484,
+      "mean_score": 0.5703845620155334
+    },
+    {
+      "video_id": "03_0060",
+      "n_frames": 385,
+      "n_anomalous": 84,
+      "max_score": 0.6486896276473999,
+      "mean_score": 0.572550356388092
+    },
+    {
+      "video_id": "03_0061",
+      "n_frames": 241,
+      "n_anomalous": 47,
+      "max_score": 0.6479493975639343,
+      "mean_score": 0.5735357999801636
+    },
+    {
+      "video_id": "04_0001",
+      "n_frames": 553,
+      "n_anomalous": 290,
+      "max_score": 0.6594769954681396,
+      "mean_score": 0.5708171129226685
+    },
+    {
+      "video_id": "04_0003",
+      "n_frames": 937,
+      "n_anomalous": 226,
+      "max_score": 0.6499055624008179,
+      "mean_score": 0.5686663389205933
+    },
+    {
+      "video_id": "04_0004",
+      "n_frames": 865,
+      "n_anomalous": 130,
+      "max_score": 0.6512266397476196,
+      "mean_score": 0.5698397755622864
+    },
+    {
+      "video_id": "04_0010",
+      "n_frames": 505,
+      "n_anomalous": 108,
+      "max_score": 0.6532420516014099,
+      "mean_score": 0.5721035003662109
+    },
+    {
+      "video_id": "04_0011",
+      "n_frames": 313,
+      "n_anomalous": 313,
+      "max_score": 0.6470039486885071,
+      "mean_score": 0.5697581171989441
+    },
+    {
+      "video_id": "04_0012",
+      "n_frames": 361,
+      "n_anomalous": 343,
+      "max_score": 0.6464543342590332,
+      "mean_score": 0.5704785585403442
+    },
+    {
+      "video_id": "04_0013",
+      "n_frames": 361,
+      "n_anomalous": 210,
+      "max_score": 0.6466331481933594,
+      "mean_score": 0.5705691576004028
+    },
+    {
+      "video_id": "04_0046",
+      "n_frames": 529,
+      "n_anomalous": 170,
+      "max_score": 0.6482023000717163,
+      "mean_score": 0.5686772465705872
+    },
+    {
+      "video_id": "04_0050",
+      "n_frames": 337,
+      "n_anomalous": 84,
+      "max_score": 0.646123468875885,
+      "mean_score": 0.5688581466674805
+    },
+    {
+      "video_id": "05_0017",
+      "n_frames": 433,
+      "n_anomalous": 133,
+      "max_score": 0.6481136679649353,
+      "mean_score": 0.5729343295097351
+    },
+    {
+      "video_id": "05_0018",
+      "n_frames": 481,
+      "n_anomalous": 66,
+      "max_score": 0.6469159126281738,
+      "mean_score": 0.5723020434379578
+    },
+    {
+      "video_id": "05_0019",
+      "n_frames": 649,
+      "n_anomalous": 160,
+      "max_score": 0.6542214751243591,
+      "mean_score": 0.5732663869857788
+    },
+    {
+      "video_id": "05_0020",
+      "n_frames": 649,
+      "n_anomalous": 56,
+      "max_score": 0.6513367891311646,
+      "mean_score": 0.5730183124542236
+    },
+    {
+      "video_id": "05_0021",
+      "n_frames": 409,
+      "n_anomalous": 81,
+      "max_score": 0.6485781073570251,
+      "mean_score": 0.5727012157440186
+    },
+    {
+      "video_id": "05_0022",
+      "n_frames": 337,
+      "n_anomalous": 107,
+      "max_score": 0.6482574343681335,
+      "mean_score": 0.5717304944992065
+    },
+    {
+      "video_id": "05_0023",
+      "n_frames": 769,
+      "n_anomalous": 278,
+      "max_score": 0.6546759605407715,
+      "mean_score": 0.5735968351364136
+    },
+    {
+      "video_id": "05_0024",
+      "n_frames": 433,
+      "n_anomalous": 135,
+      "max_score": 0.648822009563446,
+      "mean_score": 0.5722167491912842
+    },
+    {
+      "video_id": "06_0144",
+      "n_frames": 241,
+      "n_anomalous": 140,
+      "max_score": 0.6466308236122131,
+      "mean_score": 0.5690268278121948
+    },
+    {
+      "video_id": "06_0145",
+      "n_frames": 217,
+      "n_anomalous": 165,
+      "max_score": 0.6467517614364624,
+      "mean_score": 0.5699442625045776
+    },
+    {
+      "video_id": "06_0147",
+      "n_frames": 265,
+      "n_anomalous": 76,
+      "max_score": 0.6462396383285522,
+      "mean_score": 0.5684759616851807
+    },
+    {
+      "video_id": "06_0150",
+      "n_frames": 265,
+      "n_anomalous": 156,
+      "max_score": 0.6462454199790955,
+      "mean_score": 0.5693843960762024
+    },
+    {
+      "video_id": "06_0153",
+      "n_frames": 217,
+      "n_anomalous": 69,
+      "max_score": 0.6466646790504456,
+      "mean_score": 0.5696157217025757
+    },
+    {
+      "video_id": "06_0155",
+      "n_frames": 265,
+      "n_anomalous": 96,
+      "max_score": 0.6457523107528687,
+      "mean_score": 0.5686386227607727
+    },
+    {
+      "video_id": "07_0005",
+      "n_frames": 409,
+      "n_anomalous": 66,
+      "max_score": 0.6484464406967163,
+      "mean_score": 0.5718736052513123
+    },
+    {
+      "video_id": "07_0006",
+      "n_frames": 385,
+      "n_anomalous": 103,
+      "max_score": 0.648534893989563,
+      "mean_score": 0.5731173753738403
+    },
+    {
+      "video_id": "07_0007",
+      "n_frames": 481,
+      "n_anomalous": 93,
+      "max_score": 0.647641658782959,
+      "mean_score": 0.5720057487487793
+    },
+    {
+      "video_id": "07_0008",
+      "n_frames": 457,
+      "n_anomalous": 186,
+      "max_score": 0.6457809209823608,
+      "mean_score": 0.5737752914428711
+    },
+    {
+      "video_id": "07_0009",
+      "n_frames": 313,
+      "n_anomalous": 82,
+      "max_score": 0.6478877067565918,
+      "mean_score": 0.570986807346344
+    },
+    {
+      "video_id": "07_0047",
+      "n_frames": 601,
+      "n_anomalous": 204,
+      "max_score": 0.6478684544563293,
+      "mean_score": 0.5736236572265625
+    },
+    {
+      "video_id": "07_0048",
+      "n_frames": 241,
+      "n_anomalous": 52,
+      "max_score": 0.6480231285095215,
+      "mean_score": 0.571422815322876
+    },
+    {
+      "video_id": "07_0049",
+      "n_frames": 481,
+      "n_anomalous": 100,
+      "max_score": 0.6460127234458923,
+      "mean_score": 0.573297917842865
+    },
+    {
+      "video_id": "08_0044",
+      "n_frames": 313,
+      "n_anomalous": 152,
+      "max_score": 0.6476678252220154,
+      "mean_score": 0.571147620677948
+    },
+    {
+      "video_id": "08_0058",
+      "n_frames": 337,
+      "n_anomalous": 231,
+      "max_score": 0.6478240489959717,
+      "mean_score": 0.572187066078186
+    },
+    {
+      "video_id": "08_0077",
+      "n_frames": 457,
+      "n_anomalous": 320,
+      "max_score": 0.6504464149475098,
+      "mean_score": 0.570432186126709
+    },
+    {
+      "video_id": "08_0078",
+      "n_frames": 217,
+      "n_anomalous": 151,
+      "max_score": 0.646700918674469,
+      "mean_score": 0.5706062316894531
+    },
+    {
+      "video_id": "08_0079",
+      "n_frames": 241,
+      "n_anomalous": 95,
+      "max_score": 0.6472132802009583,
+      "mean_score": 0.5712034106254578
+    },
+    {
+      "video_id": "08_0080",
+      "n_frames": 289,
+      "n_anomalous": 174,
+      "max_score": 0.6475062370300293,
+      "mean_score": 0.5705733299255371
+    },
+    {
+      "video_id": "08_0156",
+      "n_frames": 337,
+      "n_anomalous": 90,
+      "max_score": 0.6476684808731079,
+      "mean_score": 0.5709869861602783
+    },
+    {
+      "video_id": "08_0157",
+      "n_frames": 313,
+      "n_anomalous": 141,
+      "max_score": 0.6469526290893555,
+      "mean_score": 0.5691434741020203
+    },
+    {
+      "video_id": "08_0158",
+      "n_frames": 337,
+      "n_anomalous": 164,
+      "max_score": 0.6478240489959717,
+      "mean_score": 0.572187066078186
+    },
+    {
+      "video_id": "08_0159",
+      "n_frames": 265,
+      "n_anomalous": 131,
+      "max_score": 0.6478213667869568,
+      "mean_score": 0.5714353322982788
+    },
+    {
+      "video_id": "08_0178",
+      "n_frames": 265,
+      "n_anomalous": 132,
+      "max_score": 0.6476575136184692,
+      "mean_score": 0.5720046758651733
+    },
+    {
+      "video_id": "08_0179",
+      "n_frames": 337,
+      "n_anomalous": 211,
+      "max_score": 0.6473677158355713,
+      "mean_score": 0.5707016587257385
+    },
+    {
+      "video_id": "09_0057",
+      "n_frames": 361,
+      "n_anomalous": 84,
+      "max_score": 0.6472446918487549,
+      "mean_score": 0.5705408453941345
+    },
+    {
+      "video_id": "10_0037",
+      "n_frames": 433,
+      "n_anomalous": 309,
+      "max_score": 0.6471662521362305,
+      "mean_score": 0.5695671439170837
+    },
+    {
+      "video_id": "10_0038",
+      "n_frames": 241,
+      "n_anomalous": 227,
+      "max_score": 0.6470476388931274,
+      "mean_score": 0.5694301128387451
+    },
+    {
+      "video_id": "10_0042",
+      "n_frames": 433,
+      "n_anomalous": 364,
+      "max_score": 0.6473347544670105,
+      "mean_score": 0.5695695877075195
+    },
+    {
+      "video_id": "10_0074",
+      "n_frames": 601,
+      "n_anomalous": 539,
+      "max_score": 0.6474396586418152,
+      "mean_score": 0.5705708265304565
+    },
+    {
+      "video_id": "10_0075",
+      "n_frames": 505,
+      "n_anomalous": 100,
+      "max_score": 0.651574432849884,
+      "mean_score": 0.5699403285980225
+    },
+    {
+      "video_id": "11_0176",
+      "n_frames": 337,
+      "n_anomalous": 141,
+      "max_score": 0.6485973596572876,
+      "mean_score": 0.5735073685646057
+    },
+    {
+      "video_id": "12_0142",
+      "n_frames": 601,
+      "n_anomalous": 519,
+      "max_score": 0.6465314626693726,
+      "mean_score": 0.5695583820343018
+    },
+    {
+      "video_id": "12_0143",
+      "n_frames": 265,
+      "n_anomalous": 177,
+      "max_score": 0.6470542550086975,
+      "mean_score": 0.5699846148490906
+    },
+    {
+      "video_id": "12_0148",
+      "n_frames": 313,
+      "n_anomalous": 177,
+      "max_score": 0.6468139886856079,
+      "mean_score": 0.5690533518791199
+    },
+    {
+      "video_id": "12_0149",
+      "n_frames": 241,
+      "n_anomalous": 130,
+      "max_score": 0.6472521424293518,
+      "mean_score": 0.5697908401489258
+    },
+    {
+      "video_id": "12_0151",
+      "n_frames": 289,
+      "n_anomalous": 213,
+      "max_score": 0.6476187109947205,
+      "mean_score": 0.570090115070343
+    },
+    {
+      "video_id": "12_0152",
+      "n_frames": 361,
+      "n_anomalous": 305,
+      "max_score": 0.6473926901817322,
+      "mean_score": 0.5695597529411316
+    },
+    {
+      "video_id": "12_0154",
+      "n_frames": 385,
+      "n_anomalous": 296,
+      "max_score": 0.6474551558494568,
+      "mean_score": 0.5686606168746948
+    },
+    {
+      "video_id": "12_0173",
+      "n_frames": 217,
+      "n_anomalous": 116,
+      "max_score": 0.6474194526672363,
+      "mean_score": 0.569859504699707
+    },
+    {
+      "video_id": "12_0174",
+      "n_frames": 337,
+      "n_anomalous": 244,
+      "max_score": 0.6472774147987366,
+      "mean_score": 0.569184422492981
+    },
+    {
+      "video_id": "12_0175",
+      "n_frames": 265,
+      "n_anomalous": 157,
+      "max_score": 0.6472160220146179,
+      "mean_score": 0.569007396697998
+    }
+  ]
+}

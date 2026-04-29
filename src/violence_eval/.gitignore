@@ -7,4 +7,4 @@ logs/
 *.npz
 shanghai_test_features/
 shanghai_test_features_1024/
-shanghai_eval_results.json
+
